@@ -114,7 +114,6 @@ Scanning for 615622 viruses, trojans and variants.
         m_edit.AppendText(L"Detecting scan executable\r\n");
 
         Process *p = new Process(L"scan.exe /?");
-        p->Prepare();
         p->Exec(result);
         delete p;
 
@@ -127,7 +126,6 @@ Scanning for 615622 viruses, trojans and variants.
         }
 
         p = new Process(L"scan.exe /version");
-        p->Prepare();
         p->Exec(result);
         delete p;
 

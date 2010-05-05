@@ -1,28 +1,24 @@
 #include "stdafx.h"
 #include "process.h"
 
-Process::Process(WTL::CString cmdline)
+Process::Process(WTL::CString cmdline) : m_ok(false)
 {
     m_cmdline = cmdline;
-}
-
-BOOL Process::Prepare(void)
-{
     m_saAttr.nLength = sizeof(m_saAttr);
     m_saAttr.bInheritHandle = TRUE;
     m_saAttr.lpSecurityDescriptor = NULL;
 
     /* Create a pipe for the child process's STDOUT */
     if(!CreatePipe(&m_hStdoutR, &m_hStdoutW, &m_saAttr, 0))
-        return false;
+        return;
 
     /* Duplicate stdout sto stderr */
     if (!DuplicateHandle(GetCurrentProcess(), m_hStdoutW, GetCurrentProcess(), &m_hStderrW, 0, TRUE, DUPLICATE_SAME_ACCESS))
-        return false;
+        return;
 
     /* Duplicate the pipe HANDLE */
     if (!DuplicateHandle(GetCurrentProcess(), m_hStdoutR, GetCurrentProcess(), &m_hStdoutRDup, 0, FALSE, DUPLICATE_SAME_ACCESS))
-        return false;
+        return;
 
     ZeroMemory(&m_pi, sizeof(m_pi));
     ZeroMemory(&m_si, sizeof(m_si));
@@ -32,7 +28,7 @@ BOOL Process::Prepare(void)
     m_si.wShowWindow = SW_HIDE;
     m_si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 
-    return true;
+    m_ok = true;
 }
 
 DWORD WINAPI Process::OutputThread(LPVOID lpvThreadParam)
@@ -66,9 +62,20 @@ DWORD WINAPI Process::OutputThread(LPVOID lpvThreadParam)
     return 0;
 }
 
+Process::~Process()
+{
+    CloseHandle(m_hStdoutR);
+    CloseHandle(m_hStdoutW);
+    CloseHandle(m_hStderrW);
+    CloseHandle(m_hStdoutRDup);
+}
+
 DWORD Process::Exec(WTL::CString &result)
 {
     DWORD exitcode;
+
+    if (!m_ok) return -1;
+
     if (!CreateProcess(NULL, const_cast<LPTSTR>(m_cmdline.GetBuffer(0)),
         NULL,
         NULL,
@@ -88,11 +95,6 @@ DWORD Process::Exec(WTL::CString &result)
     CloseHandle(m_pi.hThread);
     CloseHandle(m_pi.hProcess);
     CloseHandle(m_hEvtStop);
-
-    CloseHandle(m_hStdoutR);
-    CloseHandle(m_hStdoutW);
-    CloseHandle(m_hStderrW);
-    CloseHandle(m_hStdoutRDup);
 
     result = m_buffer;
     return exitcode;

@@ -2,14 +2,16 @@ class Process
 {
 public:
     Process(WTL::CString cmdline);
+    ~Process();
     DWORD Exec(WTL::CString &result);
-    BOOL Prepare(void);
 
     static DWORD WINAPI OutputThread(LPVOID lpvThreadParam);
 
 private:
     WTL::CString m_cmdline;
     WTL::CString m_buffer;
+
+    bool m_ok;
 
     HANDLE m_hStdoutR;
     HANDLE m_hStdoutW;
