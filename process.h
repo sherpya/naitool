@@ -22,4 +22,3 @@ private:
     PROCESS_INFORMATION m_pi;
     STARTUPINFO m_si;
 };
-
