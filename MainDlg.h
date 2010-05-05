@@ -85,6 +85,28 @@ public:
 		return 0;
 	}
 
+/*
+v1: scan /?
+McAfee VirusScan for Win32 v5.40.0
+Copyright (c) 1992-2008 McAfee, Inc. All rights reserved.
+(408) 988-3832  LICENSED COPY - Apr 16 2009
+
+Scan engine v5.4.00 for Win32.
+Virus data file v5968 created Apr 30 2010
+Scanning for 615622 viruses, trojans and variants.
+
+--
+
+v2: scan /version
+McAfee VirusScan Command Line for Win32 Version: 6.0.1.318
+Copyright (C) 2009 McAfee, Inc.
+(408) 988-3832 EVALUATION COPY - maggio 01 2010
+
+AV Engine version: 5400.1158 for Win32.
+Dat set version: 5968 created Apr 30 2010
+Scanning for 615622 viruses, trojans and variants.
+*/
+
     LRESULT OnTest(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
         WTL::CString result;
