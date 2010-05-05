@@ -38,13 +38,13 @@
     <IntDir>Debug\</IntDir>
     <OutDir>Debug\</OutDir>
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Work\VCLocal\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\wtl;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IntDir>Release\</IntDir>
     <OutDir>Release\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Work\VCLocal\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\wtl;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
