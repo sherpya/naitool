@@ -1,32 +1,22 @@
 #include "stdafx.h"
 #include "process.h"
 
-Process::Process(WTL::CString cmdline) : m_ok(false)
+Process::Process(WTL::CString cmdline) : m_ok(false), m_buffer(L""), m_cmdline(cmdline)
 {
-    m_cmdline = cmdline;
     m_saAttr.nLength = sizeof(m_saAttr);
     m_saAttr.bInheritHandle = TRUE;
     m_saAttr.lpSecurityDescriptor = NULL;
 
-    /* Create a pipe for the child process's STDOUT */
-    if(!CreatePipe(&m_hStdoutR, &m_hStdoutW, &m_saAttr, 0))
-        return;
-
-    /* Duplicate stdout sto stderr */
-    if (!DuplicateHandle(GetCurrentProcess(), m_hStdoutW, GetCurrentProcess(), &m_hStderrW, 0, TRUE, DUPLICATE_SAME_ACCESS))
-        return;
-
-    /* Duplicate the pipe HANDLE */
-    if (!DuplicateHandle(GetCurrentProcess(), m_hStdoutR, GetCurrentProcess(), &m_hStdoutRDup, 0, FALSE, DUPLICATE_SAME_ACCESS))
+    if(!CreatePipe(&m_pipe, &m_child, &m_saAttr, 0))
         return;
 
     ZeroMemory(&m_pi, sizeof(m_pi));
     ZeroMemory(&m_si, sizeof(m_si));
     m_si.cb = sizeof(m_si);
-    m_si.hStdOutput = m_hStdoutW;
-    m_si.hStdError = m_hStdoutW;
-    m_si.wShowWindow = SW_HIDE;
-    m_si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    m_si.hStdInput = INVALID_HANDLE_VALUE;
+    m_si.hStdOutput = m_child;
+    m_si.hStdError = m_child;
+    m_si.dwFlags = STARTF_USESTDHANDLES;
 
     m_ok = true;
 }
@@ -34,40 +24,32 @@ Process::Process(WTL::CString cmdline) : m_ok(false)
 DWORD WINAPI Process::OutputThread(LPVOID lpvThreadParam)
 {
     Process *pThis = static_cast<Process *>(lpvThreadParam);
-    HANDLE Handles[2];
-    Handles[0] = pThis->m_pi.hProcess;
-    Handles[1] = pThis->m_hEvtStop;
+    DWORD res, dwRead, dwAvail;
 
     ResumeThread(pThis->m_pi.hThread);
 
     while (true)
     {
-        DWORD dwRc = WaitForMultipleObjects(2, Handles, FALSE, 100);
         char chBuf[1024];
-        do
+        switch ((res = WaitForSingleObject(pThis->m_pi.hProcess, 100)))
         {
-            DWORD dwRead;
-            DWORD dwAvail = 0;
-            if (!PeekNamedPipe(pThis->m_hStdoutRDup, NULL, 0, NULL, &dwAvail, NULL) || !dwAvail)
+            case WAIT_OBJECT_0:
+            case STATUS_TIMEOUT:
+                    while (PeekNamedPipe(pThis->m_pipe, NULL, 0, NULL, &dwAvail, NULL) && (dwAvail > 0))
+                    {
+                        if (ReadFile(pThis->m_pipe, chBuf, min(sizeof(chBuf) - 1, dwAvail), &dwRead, NULL) && (dwRead > 0))
+                        {
+                            chBuf[dwRead] = 0;
+                            pThis->m_buffer += chBuf;
+                        }
+                    }
+                if (res == WAIT_OBJECT_0) return 0;
                 break;
-            if (!ReadFile(pThis->m_hStdoutRDup, chBuf, min(sizeof(chBuf) - 1, dwAvail), &dwRead, NULL) || !dwRead)
-                break;
-            chBuf[dwRead] = 0;
-            pThis->m_buffer += chBuf;
-        } while (false);
-
-        if ((dwRc == WAIT_OBJECT_0) || (dwRc == WAIT_OBJECT_0 + 1) || (dwRc == WAIT_FAILED))
-            break;
+            default:
+                return 1;
+        }
     }
     return 0;
-}
-
-Process::~Process()
-{
-    CloseHandle(m_hStdoutR);
-    CloseHandle(m_hStdoutW);
-    CloseHandle(m_hStderrW);
-    CloseHandle(m_hStdoutRDup);
 }
 
 DWORD Process::Exec(WTL::CString &result)
@@ -80,21 +62,21 @@ DWORD Process::Exec(WTL::CString &result)
         NULL,
         NULL,
         TRUE,
-        CREATE_NEW_CONSOLE | CREATE_SUSPENDED,
+        CREATE_NO_WINDOW | CREATE_SUSPENDED,
         NULL, NULL,
         &m_si,
         &m_pi))
         return 1;
 
-    m_hEvtStop = CreateEvent(NULL, TRUE, FALSE, NULL);
     DWORD m_dwThreadId;
     HANDLE m_hThread = CreateThread(NULL, 0, OutputThread, (LPVOID) this, 0, &m_dwThreadId);
 
-    WaitForSingleObject(m_pi.hProcess, INFINITE);
+    WaitForSingleObject(m_hThread, INFINITE);
     GetExitCodeProcess(m_pi.hProcess, &exitcode);
+    CloseHandle(m_child);
+    CloseHandle(m_pipe);
     CloseHandle(m_pi.hThread);
     CloseHandle(m_pi.hProcess);
-    CloseHandle(m_hEvtStop);
 
     result = m_buffer;
     return exitcode;

@@ -42,9 +42,9 @@ public:
 		CenterWindow();
 
 		// set icons
-		HICON hIcon = AtlLoadIconImage(IDR_MAINFRAME, LR_DEFAULTCOLOR, ::GetSystemMetrics(SM_CXICON), ::GetSystemMetrics(SM_CYICON));
+		HICON hIcon = AtlLoadIconImage(IDI_ICON, LR_DEFAULTCOLOR, ::GetSystemMetrics(SM_CXICON), ::GetSystemMetrics(SM_CYICON));
 		SetIcon(hIcon, TRUE);
-		HICON hIconSmall = AtlLoadIconImage(IDR_MAINFRAME, LR_DEFAULTCOLOR, ::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON));
+		HICON hIconSmall = AtlLoadIconImage(IDI_ICON, LR_DEFAULTCOLOR, ::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON));
 		SetIcon(hIconSmall, FALSE);
 
 		// register object for message filtering and idle updates
@@ -85,77 +85,10 @@ public:
 		return 0;
 	}
 
-/*
-v1: scan /?
-McAfee VirusScan for Win32 v5.40.0
-Copyright (c) 1992-2008 McAfee, Inc. All rights reserved.
-(408) 988-3832  LICENSED COPY - Apr 16 2009
-
-Scan engine v5.4.00 for Win32.
-Virus data file v5968 created Apr 30 2010
-Scanning for 615622 viruses, trojans and variants.
-
---
-
-v2: scan /version
-McAfee VirusScan Command Line for Win32 Version: 6.0.1.318
-Copyright (C) 2009 McAfee, Inc.
-(408) 988-3832 EVALUATION COPY - maggio 01 2010
-
-AV Engine version: 5400.1158 for Win32.
-Dat set version: 5968 created Apr 30 2010
-Scanning for 615622 viruses, trojans and variants.
-*/
-
     LRESULT OnTest(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
-        WTL::CString result;
-        int pos;
-        m_edit.AppendText(L"Detecting scan executable\r\n");
-
-        Process *p = new Process(L"scan.exe /?");
-        p->Exec(result);
-        delete p;
-
-        pos = result.Find(L"Scan engine v", 0);
-        /* v1 TODO */
-        if (pos != -1)
-        {
-            m_edit.AppendText(L"V1\r\n");
-            return 0;
-        }
-
-        p = new Process(L"scan.exe /version");
-        p->Exec(result);
-        delete p;
-
-        pos = result.Find(L"McAfee VirusScan Command Line for Win32 Version: ");
-        if (pos == -1)
-        {
-            m_edit.AppendText(L"Unknown version\r\n");
-            return 0;
-        }
-
-        pos += sizeof("McAfee VirusScan Command Line for Win32 Version: ") - 1;
-        WTL::CString verstr = result.Mid(pos);
-        pos = verstr.Find(L"\r");
-        verstr = verstr.Left(pos);
-
-        pos = result.Find(L"Dat set version: ");
-        if (pos == -1)
-        {
-            m_edit.AppendText(L"Cannot parse dat version\r\n");
-            return 0;
-        }
-
-        pos += sizeof("Dat set version: ") - 1;
-        result = result.Mid(pos);
-        int ver = _wtoi(result.GetBuffer(0));
-
-        WTL::CString message;
-        message.Format(L"Tool version %s - Dat Version %d\r\n", verstr, ver);
-        m_edit.AppendText(message); 
-
+        DWORD tid;
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) CMainDlg::DetectVersion, (LPVOID) this, 0, &tid);
 		return 0;
 	}
 
@@ -165,7 +98,12 @@ Scanning for 615622 viruses, trojans and variants.
 		::PostQuitMessage(nVal);
 	}
 
+    static DWORD WINAPI DetectVersion(LPVOID lpParameter);
+
 private:
     CProgressBarCtrl m_progress;
     CEdit m_edit;
+
+    int m_datversion;
+    WTL::CString m_version;
 };
