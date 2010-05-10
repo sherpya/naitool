@@ -106,6 +106,7 @@ private:
     CProgressBarCtrl m_progress;
     CEdit m_edit;
 
+    int m_toolversion;
     int m_datversion;
     WTL::CString m_version;
 };

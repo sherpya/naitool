@@ -85,6 +85,10 @@ Scanning for 615622 viruses, trojans and variants.
 DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
 {
     CMainDlg *pThis = static_cast<CMainDlg *> (lpParameter);
+    pThis->m_toolversion = -1;
+    const wchar_t *p_versionstr;
+    const wchar_t *p_versiondat;
+    const wchar_t *p_term;
 
     WTL::CString result;
     int pos;
@@ -92,36 +96,43 @@ DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
 
     Process(L"scan.exe /?").Exec(result);
 
-    pos = result.Find(L"Scan engine v", 0);
-    /* v1 TODO */
-    if (pos != -1)
+    pos = result.Find(L"Scan engine v");
+
+    if (pos == -1) /* V2 */
     {
-        pThis->m_edit.AppendText(L"V1\r\n");
-        return 0;
+        p_versionstr = L"McAfee VirusScan Command Line for Win32 Version: ";
+        p_versiondat = L"Dat set version: ";
+        p_term = L"\r";
+        Process(L"scan.exe /version").Exec(result);
+        pos = result.Find(p_versionstr);
+        if (pos == -1)
+        {
+            pThis->m_edit.AppendText(L"Unknown Version\r\n");
+            return -1;
+        }
+        pThis->m_toolversion = 2;
+    }
+    else
+    {
+        p_versionstr = L"Scan engine v";
+        p_versiondat = L"Virus data file v";
+        p_term = L" ";
+        pThis->m_toolversion = 1;
     }
 
-    Process(L"scan.exe /version").Exec(result);
-
-    pos = result.Find(L"McAfee VirusScan Command Line for Win32 Version: ");
-    if (pos == -1)
-    {
-        pThis->m_edit.AppendText(L"Unknown version\r\n");
-        return 0;
-    }
-
-    pos += sizeof("McAfee VirusScan Command Line for Win32 Version: ") - 1;
+    pos += wcslen(p_versionstr);
     WTL::CString verstr = result.Mid(pos);
-    pos = verstr.Find(L"\r");
+    pos = verstr.Find(p_term);
     pThis->m_version = verstr.Left(pos);
 
-    pos = result.Find(L"Dat set version: ");
+    pos = result.Find(p_versiondat);
     if (pos == -1)
     {
         pThis->m_edit.AppendText(L"Cannot parse dat version\r\n");
-        return 0;
+        return -1;
     }
 
-    pos += sizeof("Dat set version: ") - 1;
+    pos += wcslen(p_versiondat);
     result = result.Mid(pos);
     pThis->m_datversion = _wtoi(result.GetBuffer(0));
 
