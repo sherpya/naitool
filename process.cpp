@@ -52,9 +52,116 @@ DWORD WINAPI Process::OutputThread(LPVOID lpvThreadParam)
     return 0;
 }
 
+DWORD Process::RemoteCall(LPTHREAD_START_ROUTINE call, LPVOID arg)
+{
+    DWORD exitcode = 0;
+    DWORD tid;
+    HANDLE rth = CreateRemoteThread(m_pi.hProcess, NULL, 0, call, arg, 0, &tid);
+    WaitForSingleObject(rth, INFINITE);
+    GetExitCodeThread(rth, &exitcode);
+    return exitcode;
+}
+
+/* scan.exe v1 uses WriteConsoleA for the output, this makes impossible to capture it, so we need to redirect
+   WriteConsoleA to WriteFile stdout */
+
+BOOL Process::RedirectConsole(void)
+{
+    DWORD oldprot, dummy = 0;
+    DWORD bread, bwrite;
+    IMAGE_DOS_HEADER DosHeader;
+    IMAGE_NT_HEADERS NTHeader;
+    IMAGE_IMPORT_DESCRIPTOR ImportDesc;
+    IMAGE_THUNK_DATA Thunk;
+    PROC pfnOriginalProc;
+    const char kernel32[] = "kernel32.dll";
+    char pszModName[] = "XXXXXXXXXXXX";
+    size_t lk32 = strlen(kernel32);
+    HMODULE k32 = GetModuleHandleA(kernel32);
+
+    pfnOriginalProc = GetProcAddress(k32, "WriteConsoleA");
+
+    ULONG_PTR base = RemoteCall((LPTHREAD_START_ROUTINE) GetModuleHandleA, NULL);
+
+    if (!base)
+        return FALSE;
+
+    if (!ReadProcessMemory(m_pi.hProcess, (LPCVOID) base, &DosHeader, sizeof(DosHeader), &bread))
+        return FALSE;
+
+    if (DosHeader.e_magic != IMAGE_DOS_SIGNATURE)
+        return FALSE;
+
+    if (!ReadProcessMemory(m_pi.hProcess, (LPCVOID) (base + DosHeader.e_lfanew), &NTHeader, sizeof(NTHeader), &bread))
+        return FALSE;
+
+    if (NTHeader.Signature != IMAGE_NT_SIGNATURE)
+        return FALSE;
+
+    UINT_PTR impdesc = base + NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+
+    do
+    {
+        if (!ReadProcessMemory(m_pi.hProcess, (LPCVOID) impdesc, &ImportDesc, sizeof(ImportDesc), &bread))
+            return FALSE;
+        if (!ReadProcessMemory(m_pi.hProcess, (LPCVOID) (base + ImportDesc.Name), pszModName, lk32, &bread))
+            return FALSE;
+        if (_stricmp(pszModName, kernel32) == 0)
+            break;
+        impdesc += sizeof(ImportDesc);
+    } while (ImportDesc.Name);
+
+    if (!ImportDesc.Name)
+        return FALSE;
+
+    UINT_PTR thunk = base + ImportDesc.FirstThunk;
+
+    do
+    {
+        if (!ReadProcessMemory(m_pi.hProcess, (LPCVOID) thunk, &Thunk, sizeof(Thunk), &bread))
+            return FALSE;
+
+        if (Thunk.u1.Function == (LONG_PTR) pfnOriginalProc)
+        {
+            DWORD rel;
+            unsigned char code[] = {
+                0x6a, 0xf5,                     /* push STD_OUTPUT_HANDLE */
+                0xe8, 0x00, 0x00, 0x00, 0x00,   /* call GetStdhandle */
+                0x89, 0x44, 0x24, 0x04,         /* mov [esp + 4], eax */
+                0xe9, 0x00, 0x00, 0x00, 0x00    /* jmp WriteFile */
+            };
+            DWORD rcode = (ULONG_PTR) VirtualAllocEx(m_pi.hProcess, NULL, sizeof(code), MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+
+            rel = (DWORD) GetProcAddress(k32, "GetStdHandle") - (rcode + 2) - 5;
+            memcpy(&code[3], &rel, sizeof(DWORD));
+
+            rel = (DWORD) GetProcAddress(k32, "WriteFile") - (rcode + 11) - 5;
+            memcpy(&code[12], &rel, sizeof(DWORD));
+
+            if (!WriteProcessMemory(m_pi.hProcess, (LPVOID) rcode, code, sizeof(code), &bwrite))
+                return FALSE;
+
+            if (!VirtualProtectEx(m_pi.hProcess, (LPVOID) thunk, sizeof(DWORD), PAGE_EXECUTE_READWRITE, &oldprot))
+                return FALSE;
+
+            if (!WriteProcessMemory(m_pi.hProcess, (LPVOID) thunk, &rcode, sizeof(DWORD), &bwrite))
+                return FALSE;
+
+            VirtualProtectEx(m_pi.hProcess, (LPVOID) thunk, sizeof(DWORD), oldprot, &dummy);
+
+            return TRUE;
+        }
+        thunk += sizeof(Thunk);
+    }
+    while (Thunk.u1.Function);
+
+    return TRUE;
+}
+
 DWORD Process::Exec(WTL::CString &result)
 {
     DWORD exitcode;
+    DWORD m_dwThreadId;
 
     if (!m_ok) return -1;
 
@@ -68,7 +175,7 @@ DWORD Process::Exec(WTL::CString &result)
         &m_pi))
         return 1;
 
-    DWORD m_dwThreadId;
+    RedirectConsole();
     HANDLE m_hThread = CreateThread(NULL, 0, OutputThread, (LPVOID) this, 0, &m_dwThreadId);
 
     WaitForSingleObject(m_hThread, INFINITE);

@@ -3,6 +3,8 @@ class Process
 public:
     Process(WTL::CString cmdline);
     DWORD Exec(WTL::CString &result);
+    DWORD Process::RemoteCall(LPTHREAD_START_ROUTINE call, LPVOID arg);
+    BOOL RedirectConsole(void);
 
     static DWORD WINAPI OutputThread(LPVOID lpvThreadParam);
 
