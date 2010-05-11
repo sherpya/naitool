@@ -28,6 +28,8 @@
 
 #include "process.h"
 
+#include <curl/curl.h>
+
 #include "resource.h"
 
 #include "MainDlg.h"
