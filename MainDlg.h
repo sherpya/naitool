@@ -78,7 +78,9 @@ public:
 
         m_edit = CEdit(GetDlgItem(IDC_EDIT));
         m_progress = CProgressBarCtrl(GetDlgItem(IDC_PROGRESS));
-        PostMessage(WM_COMMAND, IDC_TEST);
+
+        DWORD tid;
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) CMainDlg::DetectVersion, (LPVOID) this, 0, &tid);
 
 		return TRUE;
 	}
@@ -109,8 +111,6 @@ public:
 
     LRESULT OnTest(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
-        DWORD tid;
-        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) CMainDlg::DetectVersion, (LPVOID) this, 0, &tid);
 		return 0;
 	}
 
