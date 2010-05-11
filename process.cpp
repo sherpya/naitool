@@ -21,7 +21,9 @@
 #include "stdafx.h"
 #include "process.h"
 
-Process::Process(WTL::CString cmdline) : m_ok(false), m_buffer(L""), m_cmdline(cmdline)
+const PROCESS_INFORMATION pi_init = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE, 0, 0 };
+
+Process::Process(WTL::CString cmdline) : m_ok(false), m_buffer(L""), m_cmdline(cmdline), m_pi(pi_init)
 {
     m_saAttr.nLength = sizeof(m_saAttr);
     m_saAttr.bInheritHandle = TRUE;
@@ -30,7 +32,6 @@ Process::Process(WTL::CString cmdline) : m_ok(false), m_buffer(L""), m_cmdline(c
     if(!CreatePipe(&m_pipe, &m_child, &m_saAttr, 0))
         return;
 
-    ZeroMemory(&m_pi, sizeof(m_pi));
     ZeroMemory(&m_si, sizeof(m_si));
     m_si.cb = sizeof(m_si);
     m_si.hStdInput = INVALID_HANDLE_VALUE;
@@ -39,6 +40,12 @@ Process::Process(WTL::CString cmdline) : m_ok(false), m_buffer(L""), m_cmdline(c
     m_si.dwFlags = STARTF_USESTDHANDLES;
 
     m_ok = true;
+}
+
+Process::~Process()
+{
+    if (m_pi.hProcess != INVALID_HANDLE_VALUE)
+        TerminateProcess(m_pi.hProcess, 0);
 }
 
 DWORD WINAPI Process::OutputThread(LPVOID lpvThreadParam)
@@ -180,8 +187,9 @@ BOOL Process::RedirectConsole(void)
 
 DWORD Process::Exec(WTL::CString &result)
 {
-    DWORD exitcode;
-    DWORD m_dwThreadId;
+    DWORD exitcode = -1;
+    DWORD dwThreadId;
+    HANDLE hThread;
 
     if (!m_ok) return -1;
 
@@ -196,15 +204,21 @@ DWORD Process::Exec(WTL::CString &result)
         return 1;
 
     RedirectConsole();
-    HANDLE m_hThread = CreateThread(NULL, 0, OutputThread, (LPVOID) this, 0, &m_dwThreadId);
+    hThread = CreateThread(NULL, 0, OutputThread, (LPVOID) this, 0, &dwThreadId);
 
-    WaitForSingleObject(m_hThread, INFINITE);
-    GetExitCodeProcess(m_pi.hProcess, &exitcode);
-    CloseHandle(m_child);
-    CloseHandle(m_pipe);
-    CloseHandle(m_pi.hThread);
-    CloseHandle(m_pi.hProcess);
+    if (WaitForSingleObject(hThread, INFINITE) == WAIT_OBJECT_0)
+    {
+        if (GetExitCodeProcess(m_pi.hProcess, &exitcode))
+        {
+            CloseHandle(m_pi.hThread);
+            CloseHandle(m_pi.hProcess);
+            CloseHandle(m_child);
+            CloseHandle(m_pipe);
+            m_pi.hProcess = INVALID_HANDLE_VALUE;
+            result = m_buffer;
+            return exitcode;
+        }
+    }
 
-    result = m_buffer;
-    return exitcode;
+    return -1;
 }

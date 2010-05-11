@@ -57,6 +57,8 @@ public:
 
 	LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
+        m_toolversion = -1;
+
 		// center the dialog on the screen
 		CenterWindow();
 
@@ -76,9 +78,6 @@ public:
 
         m_edit = CEdit(GetDlgItem(IDC_EDIT));
         m_progress = CProgressBarCtrl(GetDlgItem(IDC_PROGRESS));
-
-        m_toolversion = -1;
-
         PostMessage(WM_COMMAND, IDC_TEST);
 
 		return TRUE;
@@ -117,6 +116,11 @@ public:
 
 	void CloseDialog(int nVal)
 	{
+        if (m_process)
+        {
+            Process *p = (Process *) InterlockedExchangePointer((void **) &m_process, NULL);
+            delete p;
+        }
 		DestroyWindow();
 		::PostQuitMessage(nVal);
 	}
@@ -127,6 +131,7 @@ private:
     CProgressBarCtrl m_progress;
     CEdit m_edit;
 
+    Process *m_process;
     int m_toolversion;
     int m_datversion;
     WTL::CString m_version;

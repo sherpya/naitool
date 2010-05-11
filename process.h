@@ -22,6 +22,7 @@ class Process
 {
 public:
     Process(WTL::CString cmdline);
+    ~Process();
     DWORD Exec(WTL::CString &result);
     DWORD Process::RemoteCall(LPTHREAD_START_ROUTINE call, LPVOID arg);
     BOOL RedirectConsole(void);

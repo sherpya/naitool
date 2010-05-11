@@ -104,15 +104,21 @@ Scanning for 615622 viruses, trojans and variants.
 DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
 {
     CMainDlg *pThis = static_cast<CMainDlg *> (lpParameter);
+    WTL::CString result;
     const wchar_t *p_versionstr;
     const wchar_t *p_versiondat;
     const wchar_t *p_term;
-
-    WTL::CString result;
+    DWORD res;
     int pos;
+
     pThis->m_edit.AppendText(L"Detecting scan executable\r\n");
 
-    Process(L"scan.exe /?").Exec(result);
+    pThis->m_process = new Process(L"scan.exe /?");
+    res = pThis->m_process->Exec(result);
+    delete pThis->m_process;
+    pThis->m_process = NULL;
+
+    if (res) return -1;
 
     pos = result.Find(L"Scan engine v");
 
@@ -121,7 +127,11 @@ DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
         p_versionstr = L"McAfee VirusScan Command Line for Win32 Version: ";
         p_versiondat = L"Dat set version: ";
         p_term = L"\r";
-        Process(L"scan.exe /version").Exec(result);
+        pThis->m_process = new Process(L"scan.exe /version");
+        res = pThis->m_process->Exec(result);
+        delete pThis->m_process;
+        pThis->m_process = NULL;
+        if (res) return -1;
         pos = result.Find(p_versionstr);
         if (pos == -1)
         {
@@ -130,7 +140,7 @@ DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
         }
         pThis->m_toolversion = 2;
     }
-    else
+    else /* V1 */
     {
         p_versionstr = L"Scan engine v";
         p_versiondat = L"Virus data file v";
