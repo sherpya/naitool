@@ -77,6 +77,8 @@ public:
         m_edit = CEdit(GetDlgItem(IDC_EDIT));
         m_progress = CProgressBarCtrl(GetDlgItem(IDC_PROGRESS));
 
+        m_toolversion = -1;
+
         PostMessage(WM_COMMAND, IDC_TEST);
 
 		return TRUE;

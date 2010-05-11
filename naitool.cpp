@@ -104,7 +104,6 @@ Scanning for 615622 viruses, trojans and variants.
 DWORD WINAPI CMainDlg::DetectVersion(LPVOID lpParameter)
 {
     CMainDlg *pThis = static_cast<CMainDlg *> (lpParameter);
-    pThis->m_toolversion = -1;
     const wchar_t *p_versionstr;
     const wchar_t *p_versiondat;
     const wchar_t *p_term;
